@@ -1,4 +1,46 @@
+"use client";
+
+import { useState } from "react";
+
 export default function Home() {
+  const [symptoms, setSymptoms] = useState(
+    "65 year old male, severe chest pain, breathing difficulty, sweating, high blood pressure."
+  );
+  const [urgency, setUrgency] = useState("critical");
+  const [recommendation, setRecommendation] = useState("No recommendation yet.");
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
+
+  const handleRecommend = async () => {
+    setLoading(true);
+    setApiError("");
+
+    try {
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          symptoms,
+          urgency,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to get recommendation");
+      }
+
+      setRecommendation(data.recommendation);
+    } catch (error: any) {
+      setApiError(error.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#07111f] text-white">
       <div className="flex min-h-screen">
@@ -73,7 +115,7 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* Content */}
+        {/* Main content */}
         <section className="flex-1 px-4 py-4 md:px-6 lg:px-8">
           {/* Top Bar */}
           <div className="mb-5 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
@@ -94,7 +136,7 @@ export default function Home() {
                       AI Status
                     </p>
                     <p className="mt-1 text-sm font-medium text-cyan-300">
-                      Analyzing hospitals...
+                      {loading ? "Analyzing hospitals..." : "Ready"}
                     </p>
                   </div>
 
@@ -163,30 +205,42 @@ export default function Home() {
 
                   <Label>Patient Condition / Symptoms</Label>
                   <textarea
+                    value={symptoms}
+                    onChange={(e) => setSymptoms(e.target.value)}
                     className="min-h-[120px] w-full rounded-2xl border border-cyan-500/15 bg-[#081523] px-4 py-4 text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
                     placeholder="65 year old male, severe chest pain, breathing difficulty, sweating, high blood pressure."
-                    defaultValue="65 year old male, severe chest pain, breathing difficulty, sweating, high blood pressure."
                   />
 
                   <div className="mt-6">
                     <Label>Urgency Level</Label>
+
+                    <select
+                      value={urgency}
+                      onChange={(e) => setUrgency(e.target.value)}
+                      className="mb-4 w-full rounded-2xl border border-cyan-500/15 bg-[#081523] px-4 py-3 outline-none focus:border-cyan-400/40"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="critical">Critical</option>
+                    </select>
+
                     <div className="grid grid-cols-3 gap-3">
                       <UrgencyCard
                         title="LOW"
                         subtitle="Stable"
-                        active={false}
+                        active={urgency === "low"}
                         color="emerald"
                       />
                       <UrgencyCard
                         title="MEDIUM"
                         subtitle="Moderate"
-                        active={false}
+                        active={urgency === "medium"}
                         color="yellow"
                       />
                       <UrgencyCard
                         title="CRITICAL"
                         subtitle="High Risk"
-                        active
+                        active={urgency === "critical"}
                         color="red"
                       />
                     </div>
@@ -228,9 +282,17 @@ export default function Home() {
                     />
                   </div>
 
-                  <button className="mt-7 flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-pink-500 via-blue-600 to-cyan-400 px-5 py-4 text-lg font-semibold text-white shadow-[0_0_35px_rgba(34,211,238,0.18)] transition hover:scale-[1.01]">
-                    Find Best Hospital
+                  <button
+                    onClick={handleRecommend}
+                    disabled={loading}
+                    className="mt-7 flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-pink-500 via-blue-600 to-cyan-400 px-5 py-4 text-lg font-semibold text-white shadow-[0_0_35px_rgba(34,211,238,0.18)] transition hover:scale-[1.01] disabled:opacity-60"
+                  >
+                    {loading ? "Analyzing..." : "Find Best Hospital"}
                   </button>
+
+                  {apiError && (
+                    <p className="mt-4 text-sm text-red-400">{apiError}</p>
+                  )}
                 </div>
               </Card>
 
@@ -273,7 +335,16 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="mt-4 rounded-2xl border border-cyan-500/10 bg-[#07111e] p-4">
+                  <p className="text-sm uppercase tracking-[0.18em] text-cyan-300">
+                    Live Recommendation
+                  </p>
+                  <p className="mt-3 text-xl font-semibold text-white">
+                    {recommendation}
+                  </p>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr] mt-4">
                   <div className="overflow-hidden rounded-3xl border border-cyan-500/10 bg-[#07111e]">
                     <div className="h-64 bg-[linear-gradient(135deg,#0a1830,#0d2545_45%,#112b52)] p-5">
                       <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
@@ -319,7 +390,7 @@ export default function Home() {
                   <div className="space-y-4">
                     <div className="rounded-3xl border border-red-500/20 bg-red-500/10 px-5 py-4">
                       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-red-300">
-                        Priority: Critical
+                        Priority: {urgency.toUpperCase()}
                       </p>
                     </div>
 
@@ -393,7 +464,7 @@ export default function Home() {
 
                 <div className="mt-5 rounded-3xl border border-red-500/20 bg-gradient-to-r from-red-500/20 to-red-600/10 px-5 py-5">
                   <p className="text-2xl font-bold text-red-300">
-                    Priority Level: HIGH (Critical Case)
+                    Priority Level: {urgency.toUpperCase()}
                   </p>
                   <p className="mt-2 text-red-100/80">
                     Immediate medical attention required. Recommended hospital has the best chance for optimal outcome.
