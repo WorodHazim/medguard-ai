@@ -1,34 +1,57 @@
 import { NextResponse } from "next/server";
+import { getRecommendation, type RecommendationRequest, type CaseType, type UrgencyLevel } from "@/lib/recommendation";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const symptoms = (body.symptoms || "").toLowerCase();
-    const urgency = (body.urgency || "").toLowerCase();
+    const symptoms: string = (body.symptoms ?? "").trim();
+    const urgency: string = (body.urgency ?? "").toLowerCase().trim();
+    const caseType: string = (body.caseType ?? "").toLowerCase().trim();
+    const caseSummary: string = (body.caseSummary ?? "").trim();
+    const notes: string = (body.notes ?? "").trim();
+    const location: string = (body.location ?? "").trim();
+    const patientAge: number | undefined = body.patientAge ? Number(body.patientAge) : undefined;
 
-    let recommendation = "General hospital is suitable.";
-
-    if (symptoms.includes("chest pain")) {
-      recommendation =
-        urgency === "critical"
-          ? "Go to Cardiac Emergency Hospital immediately."
-          : "Cardiac-capable hospital is recommended.";
-    } else if (symptoms.includes("accident")) {
-      recommendation =
-        urgency === "critical"
-          ? "Go to the nearest Trauma Center immediately."
-          : "Nearest Trauma Center is recommended.";
-    } else if (symptoms.includes("stroke")) {
-      recommendation = "Stroke-ready hospital is recommended immediately.";
+    // Validate required fields
+    if (!symptoms) {
+      return NextResponse.json(
+        { error: "Patient symptoms / condition are required." },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      recommendation,
-    });
+    if (!urgency || !["low", "medium", "critical"].includes(urgency)) {
+      return NextResponse.json(
+        { error: "Urgency level must be one of: low, medium, critical." },
+        { status: 400 }
+      );
+    }
+
+    if (!caseType || !["cardiac", "trauma", "stroke", "other"].includes(caseType)) {
+      return NextResponse.json(
+        { error: "Case type must be one of: cardiac, trauma, stroke, other." },
+        { status: 400 }
+      );
+    }
+
+    const request: RecommendationRequest = {
+      caseSummary,
+      symptoms,
+      urgency: urgency as UrgencyLevel,
+      caseType: caseType as CaseType,
+      patientAge,
+      location,
+      notes,
+    };
+
+    const result = getRecommendation(request);
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
+    console.error("[/api/recommend] Unexpected error:", error);
     return NextResponse.json(
-      { error: "Failed to process recommendation." },
+      { error: "An unexpected error occurred. Please try again." },
       { status: 500 }
     );
   }
