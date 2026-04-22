@@ -1,6 +1,6 @@
 // lib/recommendation.ts
 // Rule-based recommendation engine for MedGuard AI
-// Designed for future LLM integration - structured I/O makes swap-in straightforward
+// Structured I/O makes future LLM swap-in straightforward
 
 export type CaseType = "cardiac" | "trauma" | "stroke" | "other";
 export type UrgencyLevel = "low" | "medium" | "critical";
@@ -37,6 +37,8 @@ export interface RecommendationResult {
   travelTime: string;
   availability: string;
   why: string[];
+  reasons: string[];           // Decision reasoning chain
+  matchedSignals: string[];    // Clinical keywords extracted from symptoms
   alternativeHospital: {
     name: string;
     type: string;
@@ -46,9 +48,17 @@ export interface RecommendationResult {
   };
   confidence: string;
   urgencyColor: "red" | "yellow" | "emerald";
+  score?: number;              // New: Numeric score for ranking
+  matchTag?: string;           // New: "BEST MATCH", "SECOND BEST", etc.
+  whyNotReason?: string;       // New: Explanation for alternative results
+  safetyWarnings?: string[];   // New: Emergency alert messages
+  alternatives?: RecommendationResult[]; // New: Ranked list of alternatives
+  lat?: number;                // New: Map Latitude
+  lng?: number;                // New: Map Longitude
 }
 
-// Mock hospital data - represents Abu Dhabi area hospitals
+// ─── Hospital Database ────────────────────────────────────────────────────────
+
 const HOSPITALS: HospitalProfile[] = [
   {
     name: "Sheikh Khalifa Medical City",
@@ -120,30 +130,153 @@ const HOSPITALS: HospitalProfile[] = [
   },
 ];
 
+// ─── Signal Detection ─────────────────────────────────────────────────────────
+
+// Maps each case type to a list of keyword groups and their display label
+const SIGNAL_DEFINITIONS: Record<CaseType, { keywords: string[]; label: string }[]> = {
+  cardiac: [
+    { keywords: ["chest pain", "chest"], label: "Chest pain" },
+    { keywords: ["heart attack", "myocardial", "stemi", "nstemi"], label: "Cardiac event indicator" },
+    { keywords: ["arrhythmia", "palpitation", "irregular heartbeat"], label: "Arrhythmia" },
+    { keywords: ["sweating", "diaphoresis"], label: "Diaphoresis" },
+    { keywords: ["blood pressure", "hypertension", "bp"], label: "BP abnormality" },
+    { keywords: ["shortness of breath", "breathing difficulty", "dyspnea"], label: "Respiratory distress" },
+    { keywords: ["radiating", "left arm", "jaw pain"], label: "Radiated pain pattern" },
+    { keywords: ["nausea", "vomiting"], label: "Nausea/vomiting" },
+  ],
+  stroke: [
+    { keywords: ["face", "facial droop"], label: "Facial symptoms (FAST)" },
+    { keywords: ["arm weakness", "arm", "limb weakness"], label: "Limb weakness (FAST)" },
+    { keywords: ["speech", "slurred", "aphasia", "dysarthria"], label: "Speech impairment (FAST)" },
+    { keywords: ["sudden headache", "worst headache"], label: "Acute headache" },
+    { keywords: ["vision", "blurred vision", "visual"], label: "Vision disturbance" },
+    { keywords: ["balance", "dizziness", "vertigo", "coordination"], label: "Balance issue" },
+    { keywords: ["numbness", "tingling", "sensory"], label: "Sensory abnormality" },
+  ],
+  trauma: [
+    { keywords: ["accident", "crash", "collision", "impact"], label: "Traumatic incident" },
+    { keywords: ["fracture", "broken", "bone"], label: "Suspected fracture" },
+    { keywords: ["bleeding", "hemorrhage", "blood loss"], label: "Active bleeding" },
+    { keywords: ["laceration", "wound", "cut", "gash"], label: "Laceration" },
+    { keywords: ["head injury", "concussion", "tbi"], label: "Head injury" },
+    { keywords: ["burn", "burns", "scalding"], label: "Burn injury" },
+    { keywords: ["unconscious", "unresponsive", "loss of consciousness"], label: "Altered consciousness" },
+    { keywords: ["spinal", "neck injury", "back injury"], label: "Spinal concern" },
+  ],
+  other: [
+    { keywords: ["fever", "temperature", "pyrexia", "high temperature"], label: "Fever" },
+    { keywords: ["allergic", "allergy", "anaphylaxis", "reaction"], label: "Allergic reaction" },
+    { keywords: ["unconscious", "unresponsive", "fainting"], label: "Altered consciousness" },
+    { keywords: ["severe pain", "acute pain"], label: "Significant pain" },
+    { keywords: ["seizure", "convulsion", "fitting"], label: "Seizure activity" },
+    { keywords: ["overdose", "poisoning", "toxic ingestion"], label: "Toxic exposure" },
+    { keywords: ["difficulty breathing", "respiratory"], label: "Breathing difficulty" },
+  ],
+};
+
+function extractSignals(symptoms: string, caseType: CaseType): string[] {
+  const lowered = symptoms.toLowerCase();
+  const matched: string[] = [];
+
+  const definitions = SIGNAL_DEFINITIONS[caseType] ?? [];
+  for (const def of definitions) {
+    if (def.keywords.some((kw) => lowered.includes(kw))) {
+      matched.push(def.label);
+    }
+  }
+
+  return matched;
+}
+
+// ─── Reasoning Chain Builder ──────────────────────────────────────────────────
+
+function buildReasons(
+  req: RecommendationRequest,
+  hospital: HospitalProfile,
+  signals: string[]
+): string[] {
+  const reasons: string[] = [];
+
+  // 1. Case type routing decision
+  const caseTypeReasons: Record<CaseType, string> = {
+    cardiac: "Case type set to Cardiac — engine routed to specialist cardiac centre",
+    trauma:  "Case type set to Trauma — engine routed to Level 1 Trauma facility",
+    stroke:  "Case type set to Stroke — engine routed to certified stroke centre",
+    other:   "General emergency — engine routed to broad multi-speciality facility",
+  };
+  reasons.push(caseTypeReasons[req.caseType]);
+
+  // 2. Urgency weighting applied
+  const urgencyReasons: Record<UrgencyLevel, string> = {
+    critical: "Critical urgency detected — nearest specialist centre prioritised; distance weighted 2× higher",
+    medium:   "Moderate urgency — balanced weighting between proximity and specialty score applied",
+    low:      "Low urgency — specialty match weighted higher than travel time",
+  };
+  reasons.push(urgencyReasons[req.urgency]);
+
+  // 3. Symptom signals
+  if (signals.length > 0) {
+    const listed = signals.slice(0, 3).join(", ");
+    const extra = signals.length > 3 ? ` (+${signals.length - 3} more)` : "";
+    reasons.push(`${signals.length} clinical signal${signals.length > 1 ? "s" : ""} confirmed from symptoms: ${listed}${extra}`);
+  } else {
+    reasons.push("No specific clinical keywords extracted — routing based on case type and urgency");
+  }
+
+  // 4. Specialty match
+  if (hospital.specialties.includes(req.caseType)) {
+    reasons.push(`${hospital.name} holds verified specialty certification for ${req.caseType} emergencies`);
+  }
+
+  // 5. Availability
+  if (hospital.availability === "High") {
+    reasons.push("High current availability confirmed — minimal admission delay expected");
+  } else if (hospital.availability === "Medium") {
+    reasons.push("Medium availability — acceptable response capacity for current urgency level");
+  }
+
+  // 6. Age factor
+  if (req.patientAge && req.patientAge >= 65) {
+    reasons.push(
+      `Patient age ${req.patientAge} flagged — specialist centres preferred for elderly ${req.caseType} patients`
+    );
+  }
+
+  // 7. Distance advantage
+  const secondBest = HOSPITALS.filter((h) => h.name !== hospital.name)[0];
+  if (secondBest) {
+    const h1dist = parseFloat(hospital.distance);
+    const h2dist = parseFloat(secondBest.distance);
+    if (h1dist < h2dist) {
+      reasons.push(
+        `Closest matched specialist at ${hospital.distance} — ${(h2dist - h1dist).toFixed(1)} km nearer than next option`
+      );
+    }
+  }
+
+  return reasons;
+}
+
+// ─── Scoring & Selection ──────────────────────────────────────────────────────
+
 function pickHospital(req: RecommendationRequest): HospitalProfile {
-  // Score hospitals based on specialty match and urgency
   const scored = HOSPITALS.map((h) => {
     let score = 0;
 
-    // Primary specialty match
     if (h.specialties.includes(req.caseType)) score += 50;
 
-    // Availability bonus
     if (h.availability === "High") score += 20;
     else if (h.availability === "Medium") score += 10;
 
-    // Distance/time bonus (closer = better, especially for critical)
     const distNum = parseFloat(h.distance);
     const distancePenalty = req.urgency === "critical" ? distNum * 8 : distNum * 4;
     score -= distancePenalty;
 
-    // Symptom keyword boosts
     const syms = req.symptoms.toLowerCase();
-    if (req.caseType === "cardiac" && syms.includes("chest")) score += 15;
+    if (req.caseType === "cardiac" && (syms.includes("chest") || syms.includes("heart"))) score += 15;
     if (req.caseType === "stroke" && (syms.includes("speech") || syms.includes("face") || syms.includes("arm"))) score += 15;
     if (req.caseType === "trauma" && (syms.includes("accident") || syms.includes("fracture") || syms.includes("bleed"))) score += 15;
 
-    // Age consideration (elderly -> prefer established cardiac/stroke centres)
     if (req.patientAge && req.patientAge >= 65) {
       if (h.specialties.includes("cardiac") || h.specialties.includes("stroke")) score += 10;
     }
@@ -155,7 +288,7 @@ function pickHospital(req: RecommendationRequest): HospitalProfile {
   return scored[0];
 }
 
-function getAlternative(primary: HospitalProfile, req: RecommendationRequest): HospitalProfile {
+function getAlternative(primary: HospitalProfile): HospitalProfile {
   return (
     HOSPITALS.find((h) => h.name !== primary.name && h.availability !== "Low") ??
     HOSPITALS.find((h) => h.name !== primary.name) ??
@@ -163,60 +296,59 @@ function getAlternative(primary: HospitalProfile, req: RecommendationRequest): H
   );
 }
 
+// ─── Text Builders ────────────────────────────────────────────────────────────
+
 function buildRecommendationText(hospital: HospitalProfile, req: RecommendationRequest): string {
   const urgencyPhrases: Record<UrgencyLevel, string> = {
     critical: "Immediate transfer required —",
-    medium: "Prompt transfer recommended —",
-    low: "Transfer advised —",
+    medium:   "Prompt transfer recommended —",
+    low:      "Transfer advised —",
   };
-
   const caseLabels: Record<CaseType, string> = {
     cardiac: "cardiac emergency",
-    trauma: "trauma case",
-    stroke: "stroke protocol",
-    other: "medical case",
+    trauma:  "trauma case",
+    stroke:  "stroke protocol",
+    other:   "medical case",
   };
-
   return `${urgencyPhrases[req.urgency]} ${hospital.name} is the optimal destination for this ${caseLabels[req.caseType]}.`;
 }
 
 function getUrgencyColor(urgency: UrgencyLevel): "red" | "yellow" | "emerald" {
-  const map: Record<UrgencyLevel, "red" | "yellow" | "emerald"> = {
-    critical: "red",
-    medium: "yellow",
-    low: "emerald",
-  };
-  return map[urgency];
+  return { critical: "red", medium: "yellow", low: "emerald" }[urgency];
 }
 
-function getConfidence(urgency: UrgencyLevel, caseType: CaseType): string {
-  if (urgency === "critical") return "98%";
-  if (urgency === "medium") return "94%";
-  return "91%";
+function getConfidence(urgency: UrgencyLevel): string {
+  return { critical: "98%", medium: "94%", low: "91%" }[urgency];
 }
+
+// ─── Public Entry Point ───────────────────────────────────────────────────────
 
 export function getRecommendation(req: RecommendationRequest): RecommendationResult {
   const best = pickHospital(req);
-  const alt = getAlternative(best, req);
+  const alt  = getAlternative(best);
+  const signals = extractSignals(req.symptoms, req.caseType);
+  const reasons = buildReasons(req, best, signals);
 
   return {
-    recommendation: buildRecommendationText(best, req),
-    hospitalName: best.name,
+    recommendation:    buildRecommendationText(best, req),
+    hospitalName:      best.name,
     hospitalShortName: best.shortName,
-    hospitalType: best.type,
-    priority: req.urgency.toUpperCase(),
-    distance: best.distance,
-    travelTime: best.travelTime,
-    availability: best.availability,
-    why: best.features,
+    hospitalType:      best.type,
+    priority:          req.urgency.toUpperCase(),
+    distance:          best.distance,
+    travelTime:        best.travelTime,
+    availability:      best.availability,
+    why:               best.features,
+    reasons,
+    matchedSignals:    signals,
     alternativeHospital: {
-      name: alt.name,
-      type: alt.type,
-      distance: alt.distance,
-      travelTime: alt.travelTime,
+      name:         alt.name,
+      type:         alt.type,
+      distance:     alt.distance,
+      travelTime:   alt.travelTime,
       availability: alt.availability,
     },
-    confidence: getConfidence(req.urgency, req.caseType),
+    confidence:   getConfidence(req.urgency),
     urgencyColor: getUrgencyColor(req.urgency),
   };
 }

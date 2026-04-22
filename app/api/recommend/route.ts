@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getRecommendation, type RecommendationRequest, type CaseType, type UrgencyLevel } from "@/lib/recommendation";
+import { type RecommendationRequest, type CaseType, type UrgencyLevel } from "@/lib/recommendation";
+import { getRankedRecommendations, detectSafetyWarnings } from "@/lib/recommendationEngine";
 
 export async function POST(req: Request) {
   try {
@@ -45,9 +46,18 @@ export async function POST(req: Request) {
       notes,
     };
 
-    const result = getRecommendation(request);
+    // Get ranked results from the new engine
+    const rankedResults = getRankedRecommendations(request);
+    const safetyWarnings = detectSafetyWarnings(request);
 
-    return NextResponse.json(result, { status: 200 });
+    // Prepare final response: Best match as primary, others as alternatives
+    const bestMatch = { 
+      ...rankedResults[0], 
+      safetyWarnings,
+      alternatives: rankedResults.slice(1, 3) // Show next 2 hospitals
+    };
+
+    return NextResponse.json(bestMatch, { status: 200 });
   } catch (error) {
     console.error("[/api/recommend] Unexpected error:", error);
     return NextResponse.json(
