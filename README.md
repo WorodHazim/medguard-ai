@@ -168,7 +168,7 @@ Show safety reasoning
 ##  AI Decision Panel
 <img width="1800" height="1169" alt="Screenshot 2026-04-23 at 1 37 39 PM" src="https://github.com/user-attachments/assets/8762df69-0157-460f-9d2a-62363a60a12f" />
 
-<img width="1785" height="764" alt="Screenshot 2026-04-23 at 2 58 31 PM" src="https://github.com/user-attachments/assets/c0d87759-d8cd-4131-afbe-b3b0171b45c5" />
+
 
 ##  Map + Comparison
 <img width="1650" height="479" alt="Screenshot 2026-04-23 at 2 59 03 PM" src="https://github.com/user-attachments/assets/c7e6a729-083f-4801-9ae2-5186dd6b7175" />
