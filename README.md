@@ -1,4 +1,3 @@
-<img width="1793" height="977" alt="Screenshot 2026-04-23 at 2 57 49 PM" src="https://github.com/user-attachments/assets/4dbb2519-5e27-476d-9140-015d336f88da" />
 #  MedGuard AI  
 ### AI-powered Emergency Triage & Smart Hospital Routing Assistant
 
