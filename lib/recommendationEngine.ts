@@ -4,106 +4,100 @@ import { RecommendationRequest, CaseType, UrgencyLevel, RecommendationResult } f
 
 export interface RankedResult extends RecommendationResult {
   score: number;
-  matchTag?: string;
-  whyNotReason?: string;
 }
 
-// ─── Scoring Logic ────────────────────────────────────────────────────────────
+// ─── Scoring Engine ───────────────────────────────────────────────────────────
 
 export function getRankedRecommendations(req: RecommendationRequest): RankedResult[] {
   const scoredHospitals = HOSPITALS.map((h) => {
-    let score = 0;
-    const reasons: string[] = [];
+    let clinical = 0;
+    let time = 0;
+    let availability = 0;
+    const influenceFactors: string[] = [];
+    const scoreBreakdown: { label: string; points: number; isNegative?: boolean }[] = [];
 
-    // 1. Specialty Match (Base 40 pts)
+    // 1. Clinical Fit (Sub-Score 0-100)
     if (h.specialties.includes(req.caseType)) {
-      score += 40;
-      reasons.push(`${h.shortName} is a certified specialist centre for ${req.caseType} cases.`);
+      clinical += 70;
+      scoreBreakdown.push({ label: "Primary Specialty Match", points: 40 });
+      influenceFactors.push(`${h.shortName} specialization match for ${req.caseType}`);
+    } else {
+      scoreBreakdown.push({ label: "Non-specialized Facility", points: 10, isNegative: true });
+      influenceFactors.push(`No specialized ${req.caseType} unit at ${h.shortName}`);
     }
 
-    // 2. Urgency Boost (Base 20 pts)
-    if (req.urgency === "critical" && h.supportsEmergency) {
-      score += 20;
-      reasons.push(`Emergency readiness prioritized for critical triage status.`);
-    } else if (req.urgency === "medium") {
-      score += 10;
+    // Age-aware logic
+    const isPediatric = req.patientAge !== undefined && req.patientAge < 18;
+    if (isPediatric && h.supportsPediatric) {
+      clinical += 30;
+      scoreBreakdown.push({ label: "Pediatric Ready", points: 20 });
+      influenceFactors.push(`Pediatric emergency readiness prioritized`);
     }
 
-    // 3. Proximity (Base 20 pts)
-    // 20 points for < 2km, 10 points for < 4km
-    if (h.distanceKm < 2) {
-      score += 20;
-      reasons.push(`Close proximity (${h.distanceKm}km) reduces critical transit time.`);
-    } else if (h.distanceKm < 4) {
-      score += 10;
-    }
-
-    // 4. Availability (Base 10 pts)
-    if (h.availability === "High") {
-      score += 10;
-      reasons.push(`High current bed availability ensures rapid admission.`);
-    } else if (h.availability === "Medium") {
-      score += 5;
-    }
-
-    // 5. Age Suitability (Base 10 pts)
-    if (req.patientAge && req.patientAge < 18 && h.supportsPediatric) {
-      score += 10;
-      reasons.push(`On-site pediatric emergency support suitable for young patient.`);
-    } else if (req.patientAge && req.patientAge >= 65 && (req.caseType === "cardiac" || req.caseType === "stroke")) {
-      // Elderly cardiac/stroke patients need specific geriatric backup
-      score += 5;
-    }
-
-    // 6. Signal Extraction (Dynamic Reasoning)
+    // Specialty signal extraction
     const signals = extractSignalsFromSymptoms(req.symptoms);
-    if (signals.length > 0) {
-      if (req.caseType === "cardiac" && signals.includes("Chest pain") && h.supportsCardiac) {
-        score += 10;
-        reasons.push(`Priority cardiac status confirmed due to reported chest pain.`);
-      }
-      if (req.caseType === "trauma" && signals.includes("Active bleeding") && h.supportsTrauma) {
-        score += 10;
-        reasons.push(`Immediate trauma response triggered for bleeding control.`);
-      }
+    if (req.caseType === "cardiac" && signals.includes("Chest pain") && h.supportsCardiac) {
+      clinical += 10;
+      scoreBreakdown.push({ label: "Cardiac Signal Detection", points: 15 });
+      influenceFactors.push(`Cardiac alarm matched to specialty Cath Lab`);
     }
+
+    // 2. Time Fit
+    const distanceScore = Math.max(100 - (h.distanceKm * 10), 0);
+    time = distanceScore;
+    if (h.distanceKm < 2) {
+      scoreBreakdown.push({ label: "Immediate Proximity", points: 15 });
+    } else if (h.distanceKm > 10) {
+      scoreBreakdown.push({ label: "Transit Distance Penalty", points: 10, isNegative: true });
+    }
+
+    // 3. Availability
+    const availabilityMap = { High: 100, Medium: 60, Low: 20 };
+    availability = availabilityMap[h.availability as keyof typeof availabilityMap];
+    if (h.availability === "High") {
+      scoreBreakdown.push({ label: "Resource Availability", points: 10 });
+    } else if (h.availability === "Low") {
+      scoreBreakdown.push({ label: "High Resource Saturation", points: 15, isNegative: true });
+    }
+
+    // Final Weighted Score
+    const totalScore = Math.min(
+      Math.round((clinical * 0.5) + (time * 0.3) + (availability * 0.2)), 
+      100
+    );
 
     return {
       hospital: h,
-      score: Math.min(score, 100),
-      reasons: reasons.slice(0, 5), // Keep top 5 reasoning points
+      score: totalScore,
+      subScores: {
+        clinical: Math.round(clinical),
+        time: Math.round(time),
+        availability: Math.round(availability)
+      },
+      scoreBreakdown: scoreBreakdown.slice(0, 4),
+      influenceFactors: influenceFactors.slice(-4),
       matchedSignals: signals,
+      isSpecialtyMatch: h.specialties.includes(req.caseType)
     };
   });
 
-  // Sort by score descending
   const ranked = scoredHospitals.sort((a, b) => b.score - a.score);
+  const bestMatch = ranked[0];
+  const isGenericMatch = bestMatch.score < 40 || !bestMatch.isSpecialtyMatch;
 
-  // Map to final RecommendationResult structure
   return ranked.map((item, index, arr) => {
     const h = item.hospital;
     const isTop = index === 0;
-    
-    // Generate "Why Not" reason for alternatives
-    let whyNotReason = "";
-    if (!isTop) {
-      const top = arr[0];
-      if (top.hospital.distanceKm < h.distanceKm && top.hospital.specialties.includes(req.caseType)) {
-        whyNotReason = "Further distance compared to top match.";
-      } else if (!h.specialties.includes(req.caseType)) {
-        whyNotReason = `Lacks primary specialization in ${req.caseType}.`;
-      } else if (h.availability === "Low" || h.availability === "Medium") {
-        whyNotReason = "Lower current resource availability.";
-      } else {
-        whyNotReason = "Lower overall match score for clinical requirements.";
-      }
+    const riskLevel = calculateRiskLevel(req, item.score);
+
+    // Fallback text override for generic matches
+    let recommendationText = buildRecommendationText(h, req, riskLevel);
+    if (isTop && isGenericMatch) {
+      recommendationText = `SAFE ROUTING: No strong specialty match found for "${req.caseType}". Recommending the nearest major facility (${h.shortName}) for basic evaluation.`;
     }
 
-    // Match tags
-    const matchTag = isTop ? "BEST MATCH" : (index === 1 ? "SECOND BEST" : "SUITABLE ALT");
-
     return {
-      recommendation: buildRecommendationText(h, req),
+      recommendation: recommendationText,
       hospitalName: h.name,
       hospitalShortName: h.shortName,
       hospitalType: h.specialtyLabel,
@@ -112,9 +106,9 @@ export function getRankedRecommendations(req: RecommendationRequest): RankedResu
       travelTime: `${h.travelTimeMin} min`,
       availability: h.availability,
       why: h.features,
-      reasons: item.reasons,
+      reasons: buildReasoningChain(h, req, item),
       matchedSignals: item.matchedSignals,
-      alternativeHospital: { // Legacy field, keeping for compatibility but will likely ignore in UI
+      alternativeHospital: {
         name: arr[1]?.hospital.name || "",
         type: arr[1]?.hospital.specialtyLabel || "",
         distance: `${arr[1]?.hospital.distanceKm} km`,
@@ -124,15 +118,27 @@ export function getRankedRecommendations(req: RecommendationRequest): RankedResu
       confidence: `${item.score}%`,
       urgencyColor: getUrgencyColor(req.urgency),
       score: item.score,
-      matchTag,
-      whyNotReason,
+      subScores: item.subScores,
+      scoreBreakdown: item.scoreBreakdown,
+      criticalIssue: buildCriticalIssue(req),
+      consequence: buildConsequence(req),
+      riskLevel,
+      influenceFactors: item.influenceFactors,
+      matchTag: isTop ? (isGenericMatch ? "SAFE ROUTE" : "BEST MATCH") : (index === 1 ? "SECOND BEST" : "SUITABLE ALT"),
+      whyNotReason: buildWhyNotReason(h, item, arr[0]),
       lat: h.lat,
       lng: h.lng,
+      isFallback: isTop && isGenericMatch
     };
   });
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+function calculateRiskLevel(req: RecommendationRequest, score: number): "LOW" | "MODERATE" | "HIGH" | "CRITICAL" {
+  if (req.urgency === "critical") return "CRITICAL";
+  if (req.urgency === "medium" || score < 50) return "HIGH";
+  if (score < 80) return "MODERATE";
+  return "LOW";
+}
 
 function extractSignalsFromSymptoms(symptoms: string): string[] {
   const lowered = symptoms.toLowerCase();
@@ -140,19 +146,47 @@ function extractSignalsFromSymptoms(symptoms: string): string[] {
   if (lowered.includes("chest") || lowered.includes("heart")) signals.push("Chest pain");
   if (lowered.includes("breath") || lowered.includes("resp")) signals.push("Respiratory distress");
   if (lowered.includes("bleed") || lowered.includes("wound")) signals.push("Active bleeding");
-  if (lowered.includes("face") || lowered.includes("slur")) signals.push("Stroke indicators");
+  if (lowered.includes("face") || lowered.includes("slur") || lowered.includes("droop")) signals.push("Stroke indicators");
   if (lowered.includes("bone") || lowered.includes("fracture")) signals.push("Suspected fracture");
   return signals;
 }
 
-function buildRecommendationText(h: Hospital, req: RecommendationRequest): string {
-  if (req.urgency === "critical") {
-    return `IMMEDIATE ACTION: Transfer to ${h.name} for acute ${req.caseType} stabilization.`;
-  }
-  return `RECOMMENDED: ${h.name} identifies as the optimal facility for this ${req.caseType} case.`;
+function buildReasoningChain(h: Hospital, req: RecommendationRequest, item: any): string[] {
+  const reasons: string[] = [];
+  if (h.specialties.includes(req.caseType)) reasons.push(`Specialized ${req.caseType} unit available.`);
+  if (req.patientAge && Number(req.patientAge) < 18 && h.supportsPediatric) reasons.push(`Pediatric emergency support confirmed.`);
+  if (item.subScores.time > 80) reasons.push(`Minimal transit time reduces clinical risk.`);
+  return reasons;
 }
 
-function getUrgencyColor(urgency: UrgencyLevel): "red" | "yellow" | "emerald" {
+function buildCriticalIssue(req: RecommendationRequest): string {
+  if (req.caseType === "cardiac") return "Cardiac cases require immediate specialized care at a cardiac-capable facility.";
+  if (req.caseType === "stroke") return "Neurological deficits are time-critical; matching with a Stroke Unit is essential.";
+  if (req.caseType === "trauma") return "Mechanical injuries require Level 1 Trauma stabilization to prevent shock.";
+  return "Time-to-treatment significantly impacts final clinical outcomes in acute cases.";
+}
+
+function buildConsequence(req: RecommendationRequest): string {
+  if (req.caseType === "cardiac") return "Delay in treatment may worsen cardiac outcomes or lead to myocardial damage.";
+  if (req.caseType === "stroke") return "Stroke cases are highly time-sensitive; 'Time is brain' protocols are active.";
+  if (req.caseType === "trauma") return "Immediate trauma care is strongly recommended to stabilize vital signs.";
+  return "Delayed evaluation may increase patient risk in high-severity presentations.";
+}
+
+function buildWhyNotReason(h: Hospital, item: any, top: any): string {
+  if (h.name === top.hospital.name) return "";
+  if (h.distanceKm > top.hospital.distanceKm + 5) return "Significant distance delta vs. primary match.";
+  if (item.subScores.clinical < 50) return "Less specialized facilities for this specific case context.";
+  if (h.availability === "Low") return "Lower resource availability increases admission latency.";
+  return "Alternative facility with lower overall clinical match confidence.";
+}
+
+function buildRecommendationText(h: Hospital, req: RecommendationRequest, risk: string): string {
+  if (risk === "CRITICAL") return `IMMEDIATE ACTION: Transfer to ${h.name} for acute ${req.caseType} stabilization.`;
+  return `RECOMMENDED: ${h.shortName} identified as the optimal facility for this ${req.caseType} case.`;
+}
+
+export function getUrgencyColor(urgency: UrgencyLevel): "red" | "yellow" | "emerald" {
   return { critical: "red", medium: "yellow", low: "emerald" }[urgency];
 }
 
@@ -164,7 +198,7 @@ export function detectSafetyWarnings(req: RecommendationRequest): string[] {
   
   const signals = extractSignalsFromSymptoms(req.symptoms);
   if (req.caseType === "other" && signals.some(s => ["Chest pain", "Stroke indicators"].includes(s))) {
-    warnings.push("ADVISORY: Reported symptoms suggest a high-priority cardiac or neurological event. Case type updated internally.");
+    warnings.push("ADVISORY: Reported symptoms suggest high-priority cardiac or neurological event. Specialized matching applied.");
   }
   
   return warnings;

@@ -48,13 +48,32 @@ export interface RecommendationResult {
   };
   confidence: string;
   urgencyColor: "red" | "yellow" | "emerald";
-  score?: number;              // New: Numeric score for ranking
-  matchTag?: string;           // New: "BEST MATCH", "SECOND BEST", etc.
-  whyNotReason?: string;       // New: Explanation for alternative results
-  safetyWarnings?: string[];   // New: Emergency alert messages
-  alternatives?: RecommendationResult[]; // New: Ranked list of alternatives
-  lat?: number;                // New: Map Latitude
-  lng?: number;                // New: Map Longitude
+  score?: number;              // Numeric score for ranking
+  subScores?: {                // Broken down metrics
+    clinical: number;
+    time: number;
+    availability: number;
+  };
+  scoreBreakdown?: {           // Individual scoring contributions
+    label: string;
+    points: number;
+    isNegative?: boolean;
+  }[];
+  criticalIssue?: string;      // "Why this decision is critical"
+  consequence?: string;        // "If delayed..."
+  riskLevel?: "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+  influenceFactors?: string[]; // Factors that swayed the result
+  matchTag?: string;           // "BEST MATCH", "SECOND BEST", etc.
+  whyNotReason?: string;       // Explanation for alternative results
+  safetyWarnings?: string[];   // Emergency alert messages
+  alternatives?: RecommendationResult[]; // Ranked list of alternatives
+  lat?: number;                // Map Latitude
+  lng?: number;                // Map Longitude
+  scenarioContext?: {          // Narrative context
+    title: string;
+    description: string;
+    icon: string;
+  };
 }
 
 // ─── Hospital Database ────────────────────────────────────────────────────────
