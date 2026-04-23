@@ -42,6 +42,190 @@ that combines:
 
 User Input --> Symptom Analysis --> Urgency Classification --> Clinical Specialty Matching -> Scoring Engine --> Best Facility Selection --> AI Explanation Generation --> Comparison + Map Visualization
 
-<img width="1536" height="1024" alt="ChatGPT Image Apr 23, 2026, 02_20_38 PM" src="https://github.com/user-attachments/assets/7e72674f-5df4-4a5c-a5af-ab3d6112dbe5" />
+---
+
+#  Internal Logic Flow (Chart)
+
+Symptoms → Weight Score
+Urgency → Risk Multiplier
+Specialty → Match Score
+Distance → Penalty
+Availability → Boost
+
+Final Score =
+(Symptoms + Specialty + Urgency)
+
+Distance
+Availability
+
+<img width="1536" height="1024" alt="workflow" src="https://github.com/user-attachments/assets/27655967-7310-488a-86ee-a8656e08b89b" />
+
+---
+
+#  Architecture Overview
+
+Frontend (Next.js) --> State Management (React) --> Triage Engine (Rule-Based Logic) --> Decision Generator --> UI Rendering (AI Panel + Map + Comparison)
+
+<img width="1536" height="1024" alt="Architacture_overview" src="https://github.com/user-attachments/assets/30b40afb-d6d7-46eb-b2c5-918957d489bb" />
+
+---
+
+#  User Flow (Step-by-Step)
+
+## 1️ Symptoms
+- Select from categories
+- AI suggests related symptoms
+
+## 2️ Urgency
+- Routine / Urgent / Emergency
+- Affects risk level + routing
+
+## 3️ Specialty
+- Cardiac / Trauma / Stroke / General
+
+## 4️ Patient Context
+- Age (optional)
+- Location (required)
+
+## 5️ Decision Trigger
+- System analyzes inputs
+- Generates final recommendation
+
+---
+
+#  AI Decision Model (Explainable)
+
+The system produces:
+
+-  Best hospital
+-  Risk level
+-  Confidence score
+-  Clinical reasoning
+-  Distance + time
+-  Alternative options
+
+---
+
+#  Example Output
+
+> “High-risk trauma case detected.  
+> Level 1 trauma center selected due to specialization and proximity.”
+
+---
+
+#  Safety & Trust Layer
+
+MedGuard AI includes:
+
+- ✔ No data persistence
+- ✔ Privacy-first approach
+- ✔ Clinical disclaimer
+- ✔ Emergency alert triggers
+- ✔ Fallback logic for uncertainty
+
+---
+
+#  Fallback System (Critical Thinking)
+
+If system is unsure:
+
+No strong match →
+Recommend nearest major hospital →
+Show safety reasoning
+
+
+---
+
+#  Smart Features
+
+###  Scenario Simulator
+- Adjust urgency dynamically
+- See how decision changes
+
+###  Facility Comparison
+- Distance
+- Availability
+- Clinical score
+
+###  Tactical Routing Map
+- Patient location
+- Best match
+- Alternatives
+
+---
+
+#  Screenshots
+
+##  Homepage
+![Homepage](public/screenshots/homepage.png)
+
+##  Step Flow
+![Step Flow](public/screenshots/step-flow.png)
+
+##  AI Decision Panel
+![Decision](public/screenshots/recommendation.png)
+
+##  Map + Comparison
+![Map](public/screenshots/comparison-map.png)
+
+---
+
+#  Tech Stack
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+
+---
+
+# Validation & Error Handling
+
+- Required fields enforcement
+- Disabled progression if incomplete
+- User-friendly error states
+- Safe fallback recommendations
+- No crashes or blank screens
+
+---
+
+#  Security Considerations
+
+Key risks addressed:
+
+- Prompt injection (future-ready)
+- Data exposure prevention
+- Safe logging (no sensitive data)
+- Controlled UI inputs
+
+---
+
+#  Demo Strength
+
+This project demonstrates:
+
+- Strong UX flow
+- Explainable AI decisions
+- Real-world problem solving
+- High-quality frontend execution
+- System-level thinking
+
+---
+
+#  Future Improvements
+
+- Real hospital APIs
+- Live availability
+- Ambulance integration
+- Voice input
+- AI model integration
+- Pediatric routing
+- Smart alerts
+
+---
+
+#  Disclaimer
+
+MedGuard AI is a **decision-support tool** and does not replace professional medical advice.
 
 
