@@ -172,7 +172,9 @@ Show safety reasoning
 
 ##  Map + Comparison
 <img width="1650" height="479" alt="Screenshot 2026-04-23 at 2 59 03 PM" src="https://github.com/user-attachments/assets/c7e6a729-083f-4801-9ae2-5186dd6b7175" />
-<img width="1798" height="1043" alt="Screenshot 2026-04-23 at 2 58 47 PM" src="https://github.com/user-attachments/assets/4c2f9643-851f-4fb8-be2d-4f1a410a4b3c" />
+
+![Uploading Screenshot 2026-04-23 at 3.12.17 PM.png…]()
+
 
 
 ---
