@@ -1,3 +1,4 @@
+<img width="1793" height="977" alt="Screenshot 2026-04-23 at 2 57 49 PM" src="https://github.com/user-attachments/assets/4dbb2519-5e27-476d-9140-015d336f88da" />
 #  MedGuard AI  
 ### AI-powered Emergency Triage & Smart Hospital Routing Assistant
 
@@ -157,16 +158,23 @@ Show safety reasoning
 #  Screenshots
 
 ##  Homepage
-![Homepage](public/screenshots/homepage.png)
+
+<img width="1793" height="977" alt="Screenshot 2026-04-23 at 2 57 49 PM" src="https://github.com/user-attachments/assets/471b03e0-1e07-4173-83d7-ea303cd5be01" />
+
 
 ##  Step Flow
-![Step Flow](public/screenshots/step-flow.png)
+<img width="1795" height="626" alt="Screenshot 2026-04-23 at 2 58 18 PM" src="https://github.com/user-attachments/assets/e60ad7d2-5725-4c0c-afca-4bb3a719d00b" />
+
 
 ##  AI Decision Panel
-![Decision](public/screenshots/recommendation.png)
+<img width="1800" height="1169" alt="Screenshot 2026-04-23 at 1 37 39 PM" src="https://github.com/user-attachments/assets/8762df69-0157-460f-9d2a-62363a60a12f" />
+
+<img width="1785" height="764" alt="Screenshot 2026-04-23 at 2 58 31 PM" src="https://github.com/user-attachments/assets/c0d87759-d8cd-4131-afbe-b3b0171b45c5" />
 
 ##  Map + Comparison
-![Map](public/screenshots/comparison-map.png)
+<img width="1650" height="479" alt="Screenshot 2026-04-23 at 2 59 03 PM" src="https://github.com/user-attachments/assets/c7e6a729-083f-4801-9ae2-5186dd6b7175" />
+<img width="1798" height="1043" alt="Screenshot 2026-04-23 at 2 58 47 PM" src="https://github.com/user-attachments/assets/4c2f9643-851f-4fb8-be2d-4f1a410a4b3c" />
+
 
 ---
 
