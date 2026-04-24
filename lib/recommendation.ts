@@ -334,7 +334,12 @@ function buildRecommendationText(hospital: HospitalProfile, req: RecommendationR
 }
 
 function getUrgencyColor(urgency: UrgencyLevel): "red" | "yellow" | "emerald" {
-  return { critical: "red", medium: "yellow", low: "emerald" }[urgency];
+  const map: Record<UrgencyLevel, "red" | "yellow" | "emerald"> = { 
+    critical: "red", 
+    medium: "yellow", 
+    low: "emerald" 
+  };
+  return map[urgency];
 }
 
 function getConfidence(urgency: UrgencyLevel): string {

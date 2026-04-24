@@ -187,7 +187,12 @@ function buildRecommendationText(h: Hospital, req: RecommendationRequest, risk: 
 }
 
 export function getUrgencyColor(urgency: UrgencyLevel): "red" | "yellow" | "emerald" {
-  return { critical: "red", medium: "yellow", low: "emerald" }[urgency];
+  const map: Record<UrgencyLevel, "red" | "yellow" | "emerald"> = { 
+    critical: "red", 
+    medium: "yellow", 
+    low: "emerald" 
+  };
+  return map[urgency];
 }
 
 export function detectSafetyWarnings(req: RecommendationRequest): string[] {
