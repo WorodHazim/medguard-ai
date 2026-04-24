@@ -74,6 +74,7 @@ export interface RecommendationResult {
     description: string;
     icon: string;
   };
+  isFallback?: boolean;        // Flag for generic routing fallback
 }
 
 // ─── Hospital Database ────────────────────────────────────────────────────────
