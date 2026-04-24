@@ -5,6 +5,8 @@ MedGuard AI is a decision-support system designed to help users make fast, infor
 
 It transforms raw symptoms into structured triage insights and routes users to the most appropriate healthcare facility — not just the nearest one.
 
+##  Live Demo
+[https://your-demo-link.vercel.app](https://medguard-ai-git-main-worodhazims-projects.vercel.app/)
 ---
 
 # Core Concept
